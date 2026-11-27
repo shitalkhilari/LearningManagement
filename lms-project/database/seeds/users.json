@@ -1,0 +1,44 @@
+[
+  {
+    "email": "admin@lms.local",
+    "password": "Admin@123",
+    "firstName": "Amina",
+    "lastName": "Khan",
+    "role": "ADMIN"
+  },
+  {
+    "email": "instructor1@lms.local",
+    "password": "Instructor@123",
+    "firstName": "Rahul",
+    "lastName": "Mehta",
+    "role": "INSTRUCTOR"
+  },
+  {
+    "email": "instructor2@lms.local",
+    "password": "Instructor@123",
+    "firstName": "Sofia",
+    "lastName": "Almeida",
+    "role": "INSTRUCTOR"
+  },
+  {
+    "email": "learner1@lms.local",
+    "password": "Learner@123",
+    "firstName": "Noah",
+    "lastName": "Patel",
+    "role": "LEARNER"
+  },
+  {
+    "email": "learner2@lms.local",
+    "password": "Learner@123",
+    "firstName": "Mia",
+    "lastName": "Chen",
+    "role": "LEARNER"
+  },
+  {
+    "email": "learner3@lms.local",
+    "password": "Learner@123",
+    "firstName": "Leo",
+    "lastName": "Ibrahim",
+    "role": "LEARNER"
+  }
+]
