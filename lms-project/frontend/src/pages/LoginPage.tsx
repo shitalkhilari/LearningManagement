@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Container, Paper, Stack, TextField, Typography } from '@mui/material';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { homeForRole, useAuth } from '../auth/AuthContext';
 
@@ -10,9 +10,12 @@ export function LoginPage() {
   const [password, setPassword] = useState('Learner@123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setError('');
     try {
@@ -21,6 +24,7 @@ export function LoginPage() {
     } catch (err) {
       setError((err as { displayMessage?: string }).displayMessage || 'Login failed');
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }

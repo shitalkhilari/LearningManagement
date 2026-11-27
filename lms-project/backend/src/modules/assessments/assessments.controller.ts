@@ -32,7 +32,7 @@ export class AssessmentsController {
 
   @Post('courses/:courseId/quizzes')
   @Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
-  @ApiOperation({ summary: 'Create a quiz for a course' })
+  @ApiOperation({ summary: 'Create a quiz for a module in a course' })
   createQuiz(
     @CurrentUser() user: AuthUser,
     @Param('courseId', ParseUUIDPipe) courseId: string,

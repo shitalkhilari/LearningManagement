@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateLessonDto {
   @ApiPropertyOptional()
@@ -20,4 +20,10 @@ export class UpdateLessonDto {
   @IsString()
   @MinLength(1)
   content?: string;
+
+  @ApiPropertyOptional({ example: 'https://www.w3schools.com/html/mov_bbb.mp4' })
+  @IsOptional()
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(500)
+  videoUrl?: string;
 }

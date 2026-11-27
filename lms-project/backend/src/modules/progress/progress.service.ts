@@ -4,9 +4,12 @@ import { Repository } from 'typeorm';
 import { CourseStatus } from '../../common/enums/course-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthUser } from '../../common/interfaces/auth-user.interface';
+import { QuizAttemptStatus } from '../../common/enums/quiz-attempt-status.enum';
 import { Enrollment } from '../enrollments/entities/enrollment.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { CourseModule } from '../modules/entities/course-module.entity';
+import { Quiz } from '../assessments/entities/quiz.entity';
+import { QuizAttempt } from '../assessments/entities/quiz-attempt.entity';
 import { LessonProgress } from './entities/lesson-progress.entity';
 import { calculateCompletion } from './progress.calculator';
 import { ProgressReport } from './progress-report.interface';
@@ -22,6 +25,10 @@ export class ProgressService {
     private readonly lessonsRepository: Repository<Lesson>,
     @InjectRepository(CourseModule)
     private readonly modulesRepository: Repository<CourseModule>,
+    @InjectRepository(Quiz)
+    private readonly quizzesRepository: Repository<Quiz>,
+    @InjectRepository(QuizAttempt)
+    private readonly attemptsRepository: Repository<QuizAttempt>,
   ) {}
 
   async markLessonCompleted(actor: AuthUser, lessonId: string): Promise<ProgressReport> {
@@ -121,12 +128,22 @@ export class ProgressService {
       .innerJoin('lesson.module', 'module')
       .where('module.courseId = :courseId', { courseId: enrollment.courseId })
       .getCount();
-    const completedLessons = await this.progressRepository.count({
+    const completedRows = await this.progressRepository.find({
       where: { enrollmentId: enrollment.id, isCompleted: true },
+      select: { lessonId: true },
     });
-    const completion = calculateCompletion(completedLessons, totalLessons);
-    if (enrollment.status !== completion.status) {
-      enrollment.status = completion.status;
+    const completedLessonIds = completedRows.map((row) => row.lessonId);
+    const completedLessons = completedLessonIds.length;
+    const lessonCompletion = calculateCompletion(completedLessons, totalLessons);
+    const passedQuizIds = await this.passedQuizIds(enrollment.courseId, enrollment.learnerId);
+    const totalQuizzes = await this.quizzesRepository.count({ where: { courseId: enrollment.courseId } });
+    const passedQuizzes = Math.min(passedQuizIds.length, totalQuizzes);
+    const overall = calculateCompletion(
+      Math.min(completedLessons, totalLessons) + passedQuizzes,
+      totalLessons + totalQuizzes,
+    );
+    if (enrollment.status !== overall.status) {
+      enrollment.status = overall.status;
       await this.enrollmentsRepository.save(enrollment);
     }
     return {
@@ -146,9 +163,26 @@ export class ProgressService {
       totalModules,
       totalLessons,
       completedLessons: Math.min(completedLessons, totalLessons),
-      pendingLessons: completion.pendingLessons,
-      completionPercentage: completion.percentage,
-      enrollmentStatus: completion.status,
+      pendingLessons: lessonCompletion.pendingLessons,
+      completedLessonIds,
+      totalQuizzes,
+      passedQuizzes,
+      passedQuizIds,
+      completionPercentage: overall.percentage,
+      enrollmentStatus: overall.status,
     };
+  }
+
+  private async passedQuizIds(courseId: string, learnerId: string): Promise<string[]> {
+    const rows = await this.attemptsRepository
+      .createQueryBuilder('attempt')
+      .innerJoin('attempt.quiz', 'quiz')
+      .select('attempt.quizId', 'quizId')
+      .distinct(true)
+      .where('quiz.courseId = :courseId', { courseId })
+      .andWhere('attempt.learnerId = :learnerId', { learnerId })
+      .andWhere('attempt.status = :status', { status: QuizAttemptStatus.PASS })
+      .getRawMany<Record<string, string>>();
+    return rows.map((row) => row.quizId || row.quizid || row.quiz_id).filter((id): id is string => Boolean(id));
   }
 }

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CourseStatus } from '../../common/enums/course-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthUser } from '../../common/interfaces/auth-user.interface';
@@ -13,6 +13,8 @@ const learner: AuthUser = {
   role: UserRole.LEARNER,
   isActive: true,
 };
+const instructor: AuthUser = { ...learner, id: 'inst-1', role: UserRole.INSTRUCTOR };
+const admin: AuthUser = { ...learner, id: 'admin-1', role: UserRole.ADMIN };
 
 describe('EnrollmentsService', () => {
   const enrollmentsRepository = {
@@ -86,5 +88,68 @@ describe('EnrollmentsService', () => {
         course: { instructorId: 'inst-1' },
       } as never),
     ).toThrow(ForbiddenException);
+  });
+
+  it('treats an unpublished course as missing and allows staff to view their enrollments', async () => {
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.DRAFT });
+    await expect(service.enroll(learner, { courseId: 'course-1' })).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(() => service.assertCanView(admin, { learnerId: 'other' } as never)).not.toThrow();
+    expect(() =>
+      service.assertCanView(instructor, { learnerId: 'other', course: { instructorId: instructor.id } } as never),
+    ).not.toThrow();
+    expect(() =>
+      service.assertCanView(instructor, { learnerId: 'other', course: { instructorId: 'someone-else' } } as never),
+    ).toThrow(ForbiddenException);
+    expect(() => service.assertCanView(instructor, { learnerId: 'other', course: undefined } as never)).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('filters enrollments for an instructor and an admin', async () => {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[{ id: 'enr-1' }], 1]),
+    };
+    (enrollmentsRepository as unknown as { createQueryBuilder: jest.Mock }).createQueryBuilder = jest
+      .fn()
+      .mockReturnValue(qb);
+
+    await service.findAll(instructor, { courseId: 'course-1', page: 1, limit: 10 });
+    expect(qb.andWhere).toHaveBeenCalledWith('course.instructorId = :instructorId', { instructorId: instructor.id });
+    expect(qb.andWhere).toHaveBeenCalledWith('enrollment.courseId = :courseId', { courseId: 'course-1' });
+
+    await service.findAll(admin, {
+      learnerId: 'learner-1',
+      status: 'COMPLETED' as never,
+      search: 'noah',
+      page: 1,
+      limit: 10,
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('enrollment.learnerId = :filterLearner', { filterLearner: 'learner-1' });
+    expect(qb.andWhere).toHaveBeenCalledWith('(course.title ILIKE :search OR learner.email ILIKE :search)', {
+      search: '%noah%',
+    });
+  });
+
+  it('does not let a learner filter the list down to another learner', async () => {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    (enrollmentsRepository as unknown as { createQueryBuilder: jest.Mock }).createQueryBuilder = jest
+      .fn()
+      .mockReturnValue(qb);
+    await service.findAll(learner, { learnerId: 'someone-else', page: 1, limit: 10 });
+    expect(qb.andWhere).not.toHaveBeenCalledWith('enrollment.learnerId = :filterLearner', expect.anything());
+    expect(qb.andWhere).toHaveBeenCalledWith('enrollment.learnerId = :learnerId', { learnerId: learner.id });
   });
 });

@@ -11,9 +11,9 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test": "jest --runInBand --forceExit",
+    "test:watch": "jest --watch --runInBand",
+    "test:cov": "jest --coverage --runInBand --forceExit",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
   },
   "dependencies": {
@@ -62,10 +62,26 @@
     },
     "collectCoverageFrom": [
       "modules/**/*.service.ts",
+      "modules/**/*.controller.ts",
       "modules/progress/progress.calculator.ts",
-      "modules/assessments/quiz-scoring.ts"
+      "modules/assessments/quiz-scoring.ts",
+      "modules/auth/strategies/**/*.ts",
+      "common/guards/**/*.ts",
+      "common/filters/**/*.ts",
+      "common/interceptors/**/*.ts",
+      "common/utils/**/*.ts",
+      "common/decorators/**/*.ts",
+      "config/**/*.ts"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 85,
+        "branches": 80,
+        "functions": 85,
+        "lines": 85
+      }
+    },
     "testEnvironment": "node"
   }
 }

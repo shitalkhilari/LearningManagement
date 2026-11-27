@@ -16,6 +16,10 @@ export interface ProgressReport {
   totalLessons: number;
   completedLessons: number;
   pendingLessons: number;
+  completedLessonIds: string[];
+  totalQuizzes: number;
+  passedQuizzes: number;
+  passedQuizIds: string[];
   completionPercentage: number;
   enrollmentStatus: string;
 }

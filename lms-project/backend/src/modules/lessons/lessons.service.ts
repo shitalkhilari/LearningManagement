@@ -45,6 +45,7 @@ export class LessonsService {
       title: dto.title.trim(),
       description: dto.description.trim(),
       content: dto.content.trim(),
+      videoUrl: dto.videoUrl.trim(),
       sequence: Number(max?.max ?? 0) + 1,
     });
     return this.lessonsRepository.save(lesson);
@@ -86,6 +87,9 @@ export class LessonsService {
     }
     if (dto.content !== undefined) {
       lesson.content = dto.content.trim();
+    }
+    if (dto.videoUrl !== undefined) {
+      lesson.videoUrl = dto.videoUrl.trim();
     }
     return this.lessonsRepository.save(lesson);
   }

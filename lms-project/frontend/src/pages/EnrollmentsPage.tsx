@@ -1,27 +1,46 @@
-import { Alert, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import client from '../api/client';
-import { Enrollment } from '../types';
+import { Course, Enrollment } from '../types';
 
 export function EnrollmentsPage() {
   const [rows, setRows] = useState<Enrollment[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState('');
   const [courseId, setCourseId] = useState('');
 
   async function load(filter?: string) {
-    const { data } = await client.get('/enrollments', { params: { limit: 50, courseId: filter || undefined } });
+    const { data } = await client.get('/enrollments', { params: { limit: 100, courseId: filter || undefined } });
     setRows(data.data);
   }
 
   useEffect(() => {
     load().catch((err) => setError(err.displayMessage || 'Could not load enrollments'));
+    client.get('/courses', { params: { limit: 100 } })
+      .then(({ data }) => setCourses(data.data))
+      .catch(() => setCourses([]));
   }, []);
 
   return (
     <Stack spacing={2}>
       <Typography variant="h4">Enrollments</Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      <TextField label="Filter by course id" value={courseId} onChange={(e) => setCourseId(e.target.value)} onBlur={() => load(courseId)} />
+      <TextField
+        select
+        label="Course"
+        value={courseId}
+        helperText="Filter the list by course title."
+        onChange={(e) => {
+          const next = e.target.value;
+          setCourseId(next);
+          load(next).catch((err) => setError(err.displayMessage || 'Could not load enrollments'));
+        }}
+      >
+        <MenuItem value="">All courses</MenuItem>
+        {courses.map((course) => (
+          <MenuItem key={course.id} value={course.id}>{course.title}</MenuItem>
+        ))}
+      </TextField>
       <Table>
         <TableHead>
           <TableRow>

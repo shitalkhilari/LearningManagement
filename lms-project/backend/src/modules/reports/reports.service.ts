@@ -164,7 +164,7 @@ export class ReportsService {
   private summarizeQuiz(quiz: Quiz, attempts: QuizAttempt[]) {
     const passed = attempts.filter((attempt) => attempt.status === 'PASS').length;
     return {
-      quiz: { id: quiz.id, title: quiz.title, passingPercentage: quiz.passingPercentage, courseId: quiz.courseId },
+      quiz: { id: quiz.id, title: quiz.title, courseId: quiz.courseId },
       attempts: attempts.length,
       passed,
       failed: attempts.length - passed,

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthUser } from '../../common/interfaces/auth-user.interface';
 import { CoursesService } from '../courses/courses.service';
@@ -68,5 +68,43 @@ describe('ModulesService', () => {
   it('rejects a partial reorder list', async () => {
     modulesRepository.find.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
     await expect(service.reorder('course-1', instructor, ['a'])).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('starts at sequence 1 when the course has no modules yet', async () => {
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    modulesRepository.createQueryBuilder.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue(undefined),
+    });
+    const created = await service.create('course-1', instructor, { title: ' First ', description: ' Details ' });
+    expect(created.sequence).toBe(1);
+    expect(created.title).toBe('First');
+  });
+
+  it('updates a description and deletes a module that has no progress', async () => {
+    modulesRepository.findOne.mockResolvedValue({ id: 'mod-1', courseId: 'course-1', title: 'Keep', description: 'Old' });
+    const updated = await service.update('mod-1', instructor, { description: ' New ' });
+    expect(updated.description).toBe('New');
+    expect(updated.title).toBe('Keep');
+
+    progressRepository.createQueryBuilder.mockReturnValue({
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
+    });
+    await expect(service.remove('mod-1', instructor)).resolves.toEqual({ message: 'Module deleted' });
+    expect(modulesRepository.delete).toHaveBeenCalledWith('mod-1');
+  });
+
+  it('rejects a missing module, a duplicate reorder, and an id from another course', async () => {
+    modulesRepository.findOne.mockResolvedValue(null);
+    await expect(service.update('missing', instructor, { title: 'New' })).rejects.toBeInstanceOf(NotFoundException);
+
+    modulesRepository.find.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    await expect(service.reorder('course-1', instructor, ['a', 'a'])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.reorder('course-1', instructor, ['a', 'c'])).rejects.toThrow(
+      'orderedIds must list each module of the course exactly once',
+    );
   });
 });

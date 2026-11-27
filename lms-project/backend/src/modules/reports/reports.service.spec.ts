@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CourseStatus } from '../../common/enums/course-status.enum';
 import { EnrollmentStatus } from '../../common/enums/enrollment-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
@@ -101,7 +101,7 @@ describe('ReportsService', () => {
 
   it('summarizes a learner quiz and an instructor quiz', async () => {
     quizzesRepository.findOne.mockResolvedValue({
-      id: 'quiz-1', title: 'Check', passingPercentage: 50, courseId: 'course-1', course: { instructorId: 'inst-1' },
+      id: 'quiz-1', title: 'Check', courseId: 'course-1', course: { instructorId: 'inst-1' },
     });
     attemptsRepository.find.mockResolvedValue([{ status: 'PASS', percentage: 100, learnerId: learner.id }]);
     const mine = await service.quizPerformance(learner, 'quiz-1');
@@ -115,5 +115,87 @@ describe('ReportsService', () => {
     const staff = await service.quizPerformance(instructor, 'quiz-1');
     expect(staff.failed).toBe(1);
     expect(staff.averagePercentage).toBe(50);
+  });
+
+  it('returns zero averages when a learner or a quiz has no records', async () => {
+    progressService.listMine.mockResolvedValue([]);
+    await expect(service.overview(learner)).resolves.toEqual({
+      enrolledCourses: 0,
+      completedCourses: 0,
+      averageCompletion: 0,
+    });
+
+    quizzesRepository.findOne.mockResolvedValue(null);
+    await expect(service.quizPerformance(instructor, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+
+    quizzesRepository.findOne.mockResolvedValue({
+      id: 'quiz-1',
+      title: 'Check',
+      courseId: 'course-1',
+      course: { instructorId: instructor.id },
+    });
+    attemptsRepository.find.mockResolvedValue([]);
+    const emptyQuiz = await service.quizPerformance(learner, 'quiz-1');
+    expect(emptyQuiz.averagePercentage).toBe(0);
+    expect(emptyQuiz.failed).toBe(0);
+  });
+
+  it('filters learner progress by course and enrollment date', async () => {
+    coursesRepository.find.mockResolvedValue([{ id: 'course-1' }, { id: 'course-2' }]);
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    progressService.listForLearner.mockResolvedValue([
+      report,
+      { ...report, enrollmentId: 'enr-2', enrolledAt: new Date('2026-01-01'), enrollmentStatus: 'ACTIVE', completionPercentage: 10 },
+    ]);
+
+    const instructorRows = await service.learnerProgress(instructor, 'learner-1', {
+      courseId: 'course-1',
+      from: '2026-02-01',
+      to: '2026-03-01',
+    });
+    expect(progressService.listForLearner).toHaveBeenCalledWith('learner-1', ['course-1']);
+    expect(instructorRows).toHaveLength(1);
+    expect(instructorRows[0].enrollmentId).toBe('enr-1');
+
+    progressService.listForLearner.mockResolvedValue([report]);
+    const learnerRows = await service.learnerProgress(learner, learner.id, {
+      courseId: 'course-1',
+      to: '2026-02-01',
+    });
+    expect(coursesService.getManagedCourse).toHaveBeenCalledTimes(1);
+    expect(learnerRows).toEqual([]);
+
+    const outside = await service.learnerProgress(admin, 'learner-1', { from: '2026-04-01' });
+    expect(progressService.listForLearner).toHaveBeenCalledWith('learner-1', undefined);
+    expect(outside).toEqual([]);
+  });
+
+  it('applies enrollment dates and completion status to course reports', async () => {
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1', title: 'Nest', status: 'PUBLISHED' });
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    enrollmentsRepository.createQueryBuilder.mockReturnValue(qb);
+    const enrollments = await service.courseEnrollments(instructor, 'course-1', {
+      from: '2026-01-01',
+      to: '2026-12-31',
+    });
+    expect(enrollments.total).toBe(0);
+    expect(qb.andWhere).toHaveBeenCalledWith('enrollment.enrolledAt >= :from', { from: '2026-01-01' });
+    expect(qb.andWhere).toHaveBeenCalledWith('enrollment.enrolledAt <= :to', { to: '2026-12-31' });
+
+    enrollmentsRepository.find.mockResolvedValue([{ id: 'enr-1' }, { id: 'enr-2' }]);
+    progressService.syncAndBuild
+      .mockResolvedValueOnce(report)
+      .mockResolvedValueOnce({ ...report, enrollmentId: 'enr-2', enrollmentStatus: 'ACTIVE', completionPercentage: 40 });
+    const completion = await service.courseCompletion(admin, 'course-1', { status: EnrollmentStatus.ACTIVE });
+    expect(completion.enrolled).toBe(1);
+    expect(completion.completed).toBe(0);
+    expect(completion.active).toBe(1);
+    expect(completion.averageCompletion).toBe(40);
   });
 });

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
-const source = fs.readFileSync(path.join(__dirname, 'DEVELOPER_GUIDELINES.md'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'DEVELOPER_GUIDELINES.md'), 'utf8');
 const output = path.join(__dirname, 'NESTJS_LMS_LEARNING_GUIDE.pdf');
 const doc = new PDFDocument({ size: 'A4', margin: 54, bufferPages: true });
 doc.pipe(fs.createWriteStream(output));
@@ -13,7 +13,7 @@ doc.font('Times-Roman').fontSize(14).text('eLearning Management System', { align
 doc.moveDown();
 doc.fontSize(12).text('A beginner-friendly guide to the NestJS, PostgreSQL, and React application in this assignment.', { align: 'center' });
 doc.moveDown(2);
-doc.text('This PDF is generated from documentation/DEVELOPER_GUIDELINES.md.', { align: 'center' });
+doc.text('This PDF is generated from DEVELOPER_GUIDELINES.md at the project root.', { align: 'center' });
 doc.addPage();
 
 doc.font('Times-Bold').fontSize(18).text('Contents');

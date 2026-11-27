@@ -13,12 +13,14 @@ A local NestJS and React learning-management application for the NestJS eLearnin
 
 The React app calls the NestJS API with a JWT. Guards check the token and the role. Services hold the business rules. TypeORM repositories talk to PostgreSQL. Schema changes go through migrations (`synchronize` is false).
 
+How the modules fit together, how a request moves through NestJS, and how to add a feature are explained in [DEVELOPER_GUIDELINES.md](DEVELOPER_GUIDELINES.md).
+
 ```
 lms-project/
   backend/        NestJS API
   frontend/       React UI
   database/seeds/ Sample user list used by the seed script
-  documentation/  ER diagram and learning notes
+  documentation/  ER diagram. The learning guide is DEVELOPER_GUIDELINES.md at the project root.
   postman/        API collection
   docker-compose.yml
 ```
@@ -124,7 +126,11 @@ npm run test:cov
 npm run test:e2e
 ```
 
-`npm run test:cov` writes `backend/coverage/lcov-report/index.html`. Open that file in a browser. The e2e test uses `DB_NAME_TEST` (default `lms_test`) and needs PostgreSQL to be running. Create that database before `npm run test:e2e`.
+`npm test` runs the unit suites in one Jest process. `npm run test:cov` runs the same suites and writes `backend/coverage/lcov-report/index.html`. Open that file in a browser. Coverage is collected for services, controllers, guards, the exception filter, the logging interceptor, decorators, pagination, configuration, and the JWT strategy. `test:cov` fails if statements, functions, or lines drop below 85%, or if branches drop below 80%.
+
+The e2e test uses `DB_NAME_TEST` (default `lms_test`) and needs PostgreSQL to be running. Create that database before `npm run test:e2e`. It truncates the test database, so do not point `DB_NAME_TEST` at the development database.
+
+See [TEST_COVERAGE_REPORT.md](TEST_COVERAGE_REPORT.md) for the baseline, the current percentages, and what is still excluded.
 
 ## Main API groups
 

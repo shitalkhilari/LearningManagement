@@ -174,7 +174,7 @@
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/courses/{{courseId}}/quizzes",
-            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Basics quiz\",\n  \"description\": \"One question.\",\n  \"passingPercentage\": 50\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Basics quiz\",\n  \"description\": \"One question.\",\n  \"moduleId\": \"{{moduleId}}\"\n}" }
           }
         },
         {
@@ -184,7 +184,7 @@
             "method": "POST",
             "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }, { "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/quizzes/{{quizId}}/questions",
-            "body": { "mode": "raw", "raw": "{\n  \"questionText\": \"Where do business rules live?\",\n  \"options\": [\n    { \"optionText\": \"In the service\", \"isCorrect\": true },\n    { \"optionText\": \"Only in the React page\", \"isCorrect\": false }\n  ]\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"questionText\": \"Where do business rules live?\",\n  \"options\": [\n    { \"optionText\": \"In the service\", \"isCorrect\": true },\n    { \"optionText\": \"Only in the React page\", \"isCorrect\": false },\n    { \"optionText\": \"In the database password\", \"isCorrect\": false },\n    { \"optionText\": \"In the CSS file\", \"isCorrect\": false }\n  ]\n}" }
           }
         },
         {

@@ -34,6 +34,9 @@ export class Lesson {
   @Column({ type: 'text' })
   content: string;
 
+  @Column({ name: 'video_url', length: 500 })
+  videoUrl: string;
+
   @Column({ type: 'int' })
   sequence: number;
 

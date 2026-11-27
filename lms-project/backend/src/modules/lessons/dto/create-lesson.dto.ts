@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsUrl, MaxLength } from 'class-validator';
 
 export class CreateLessonDto {
   @ApiProperty({ example: 'What is a module?' })
@@ -17,4 +17,9 @@ export class CreateLessonDto {
   @IsString()
   @IsNotEmpty()
   content: string;
+
+  @ApiProperty({ example: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' })
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(500)
+  videoUrl: string;
 }

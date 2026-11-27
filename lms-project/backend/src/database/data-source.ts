@@ -12,6 +12,8 @@ import { QuizOption } from '../modules/assessments/entities/quiz-option.entity';
 import { QuizAttempt } from '../modules/assessments/entities/quiz-attempt.entity';
 import { QuizResponse } from '../modules/assessments/entities/quiz-response.entity';
 import { InitialSchema1732600000000 } from './migrations/1732600000000-InitialSchema';
+import { LessonVideoUrl1732700000000 } from './migrations/1732700000000-LessonVideoUrl';
+import { DropQuizPassingPercentage1732800000000 } from './migrations/1732800000000-DropQuizPassingPercentage';
 
 config();
 
@@ -37,6 +39,6 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'lms',
   entities,
-  migrations: [InitialSchema1732600000000],
+  migrations: [InitialSchema1732600000000, LessonVideoUrl1732700000000, DropQuizPassingPercentage1732800000000],
   synchronize: false,
 });

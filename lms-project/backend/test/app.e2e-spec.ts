@@ -108,16 +108,21 @@ describe('LMS e2e', () => {
       title: 'Basics', description: 'First module',
     });
     const lesson = await request(server).post(`/api/modules/${moduleResponse.body.id}/lessons`).set('Authorization', `Bearer ${instructorToken}`).send({
-      title: 'Services', description: 'Where rules live', content: 'Business rules live in services.',
+      title: 'Services',
+      description: 'Where rules live',
+      content: 'Business rules live in services.',
+      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
     });
     const quiz = await request(server).post(`/api/courses/${courseId}/quizzes`).set('Authorization', `Bearer ${instructorToken}`).send({
-      title: 'Check', description: 'One question', passingPercentage: 50,
+      title: 'Check', description: 'One question', moduleId: moduleResponse.body.id,
     });
     const question = await request(server).post(`/api/quizzes/${quiz.body.id}/questions`).set('Authorization', `Bearer ${instructorToken}`).send({
       questionText: 'Where do business rules live?',
       options: [
         { optionText: 'In the service', isCorrect: true },
         { optionText: 'In the browser only', isCorrect: false },
+        { optionText: 'In the database password', isCorrect: false },
+        { optionText: 'In the CSS file', isCorrect: false },
       ],
     });
     expect(question.status).toBe(201);
@@ -139,8 +144,8 @@ describe('LMS e2e', () => {
 
     const completion = await request(server).post(`/api/progress/lessons/${lesson.body.id}/complete`).set('Authorization', `Bearer ${learnerToken}`);
     expect(completion.status).toBe(201);
-    expect(completion.body.completionPercentage).toBe(100);
-    expect(completion.body.enrollmentStatus).toBe('COMPLETED');
+    expect(completion.body.completionPercentage).toBe(50);
+    expect(completion.body.enrollmentStatus).toBe('ACTIVE');
 
     const correctId = question.body.options.find((option: { isCorrect: boolean }) => option.isCorrect).id;
     const submitted = await request(server).post(`/api/quizzes/${quiz.body.id}/submit`).set('Authorization', `Bearer ${learnerToken}`).send({
@@ -152,6 +157,8 @@ describe('LMS e2e', () => {
 
     const report = await request(server).get(`/api/reports/learners/${learnerLogin.body.user.id}/progress`).set('Authorization', `Bearer ${instructorToken}`);
     expect(report.status).toBe(200);
+    expect(report.body[0].passedQuizzes).toBe(1);
     expect(report.body[0].completionPercentage).toBe(100);
+    expect(report.body[0].enrollmentStatus).toBe('COMPLETED');
   });
 });

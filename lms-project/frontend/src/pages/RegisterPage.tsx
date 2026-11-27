@@ -1,5 +1,5 @@
 import { Alert, Button, Container, Paper, Stack, TextField, Typography } from '@mui/material';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
@@ -9,6 +9,7 @@ export function RegisterPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
 
   function setField(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -16,6 +17,8 @@ export function RegisterPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setError('');
     try {
@@ -24,6 +27,7 @@ export function RegisterPage() {
     } catch (err) {
       setError((err as { displayMessage?: string }).displayMessage || 'Registration failed');
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }

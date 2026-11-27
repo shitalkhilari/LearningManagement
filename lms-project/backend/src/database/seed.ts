@@ -133,12 +133,21 @@ async function seed() {
     }),
   );
 
+  const sampleVideos = [
+    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+    'https://www.w3schools.com/html/mov_bbb.mp4',
+    'https://filesamples.com/samples/video/mp4/sample_640x360.mp4',
+    'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4',
+    'https://download.samplelib.com/mp4/sample-5s.mp4',
+    'https://download.samplelib.com/mp4/sample-10s.mp4',
+  ];
   const lessons = await lessonRepo.save([
     lessonRepo.create({
       moduleId: nestModules[0].id,
       title: 'Modules and providers',
       description: 'What a module owns.',
       content: 'A module declares controllers and providers that belong together.',
+      videoUrl: sampleVideos[0],
       sequence: 1,
     }),
     lessonRepo.create({
@@ -146,6 +155,7 @@ async function seed() {
       title: 'Dependency injection',
       description: 'How services are created.',
       content: 'Nest creates a service once and injects it where the constructor asks for it.',
+      videoUrl: sampleVideos[1],
       sequence: 2,
     }),
     lessonRepo.create({
@@ -153,6 +163,7 @@ async function seed() {
       title: 'Guards',
       description: 'Who may call an endpoint.',
       content: 'A guard runs before the controller and can reject the request.',
+      videoUrl: sampleVideos[2],
       sequence: 1,
     }),
     lessonRepo.create({
@@ -160,6 +171,7 @@ async function seed() {
       title: 'Primary keys',
       description: 'Identifying a row.',
       content: 'A primary key uniquely identifies each row in a table.',
+      videoUrl: sampleVideos[3],
       sequence: 1,
     }),
     lessonRepo.create({
@@ -167,6 +179,7 @@ async function seed() {
       title: 'Foreign keys',
       description: 'Connecting tables.',
       content: 'A foreign key stores the primary key of a related row.',
+      videoUrl: sampleVideos[4],
       sequence: 2,
     }),
     lessonRepo.create({
@@ -174,6 +187,7 @@ async function seed() {
       title: 'Joins',
       description: 'Reading related data.',
       content: 'A join combines rows from two tables using a shared key.',
+      videoUrl: sampleVideos[5],
       sequence: 1,
     }),
   ]);
@@ -207,7 +221,6 @@ async function seed() {
       moduleId: nestModules[0].id,
       title: 'NestJS basics quiz',
       description: 'Check the first module.',
-      passingPercentage: 50,
     }),
   );
   const sqlQuiz = await quizRepo.save(
@@ -216,7 +229,6 @@ async function seed() {
       moduleId: sqlModules[0].id,
       title: 'Keys quiz',
       description: 'Check primary and foreign keys.',
-      passingPercentage: 70,
     }),
   );
 
@@ -231,6 +243,7 @@ async function seed() {
     optionRepo.create({ questionId: q1.id, optionText: 'In the controller only', isCorrect: false }),
     optionRepo.create({ questionId: q1.id, optionText: 'In the service', isCorrect: true }),
     optionRepo.create({ questionId: q1.id, optionText: 'In the React page', isCorrect: false }),
+    optionRepo.create({ questionId: q1.id, optionText: 'In the database password', isCorrect: false }),
   ]);
   const q2 = await questionRepo.save(
     questionRepo.create({
@@ -242,6 +255,8 @@ async function seed() {
   await optionRepo.save([
     optionRepo.create({ questionId: q2.id, optionText: 'It decides if a request may continue', isCorrect: true }),
     optionRepo.create({ questionId: q2.id, optionText: 'It stores the database password', isCorrect: false }),
+    optionRepo.create({ questionId: q2.id, optionText: 'It renders the course page', isCorrect: false }),
+    optionRepo.create({ questionId: q2.id, optionText: 'It replaces the database', isCorrect: false }),
   ]);
   const q3 = await questionRepo.save(
     questionRepo.create({
@@ -253,6 +268,8 @@ async function seed() {
   await optionRepo.save([
     optionRepo.create({ questionId: q3.id, optionText: 'A related primary key', isCorrect: true }),
     optionRepo.create({ questionId: q3.id, optionText: 'A CSS class', isCorrect: false }),
+    optionRepo.create({ questionId: q3.id, optionText: 'A React component', isCorrect: false }),
+    optionRepo.create({ questionId: q3.id, optionText: 'A JWT secret', isCorrect: false }),
   ]);
 
   console.log('Seed data created.');

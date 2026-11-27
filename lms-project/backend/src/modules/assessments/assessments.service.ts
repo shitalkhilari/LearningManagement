@@ -62,15 +62,15 @@ export class AssessmentsService {
 
   async createQuiz(courseId: string, actor: AuthUser, dto: CreateQuizDto): Promise<Quiz> {
     const course = await this.coursesService.getManagedCourse(courseId, actor);
-    if (dto.moduleId) {
-      await this.assertModuleInCourse(dto.moduleId, course.id);
+    if (!dto.moduleId) {
+      throw new BadRequestException('A quiz must belong to a module');
     }
+    await this.assertModuleInCourse(dto.moduleId, course.id);
     const quiz = this.quizzesRepository.create({
       courseId: course.id,
-      moduleId: dto.moduleId ?? null,
+      moduleId: dto.moduleId,
       title: dto.title.trim(),
       description: dto.description.trim(),
-      passingPercentage: dto.passingPercentage,
     });
     return this.quizzesRepository.save(quiz);
   }
@@ -101,9 +101,6 @@ export class AssessmentsService {
     if (dto.description !== undefined) {
       quiz.description = dto.description.trim();
     }
-    if (dto.passingPercentage !== undefined) {
-      quiz.passingPercentage = dto.passingPercentage;
-    }
     if (dto.moduleId !== undefined) {
       await this.assertModuleInCourse(dto.moduleId, quiz.courseId);
       quiz.moduleId = dto.moduleId;
@@ -126,7 +123,7 @@ export class AssessmentsService {
   async addQuestion(quizId: string, actor: AuthUser, dto: CreateQuestionDto): Promise<QuizQuestion> {
     const quiz = await this.loadQuiz(quizId);
     await this.coursesService.getManagedCourse(quiz.courseId, actor);
-    this.assertSingleCorrectOption(dto.options);
+    this.assertQuestionOptions(dto.options);
     const sequence = dto.sequence ?? (await this.nextQuestionSequence(quizId));
     return this.dataSource.transaction(async (manager) => {
       const question = await manager.save(
@@ -158,7 +155,7 @@ export class AssessmentsService {
     }
     await this.coursesService.getManagedCourse(question.quiz.courseId, actor);
     if (dto.options) {
-      this.assertSingleCorrectOption(dto.options);
+      this.assertQuestionOptions(dto.options);
       const responseCount = await this.responsesRepository.count({ where: { questionId: id } });
       if (responseCount > 0) {
         throw new ConflictException('Cannot change options after learners have answered this question');
@@ -259,7 +256,6 @@ export class AssessmentsService {
     const scored = scoreQuiz(
       graded.filter((item) => item.isCorrect).length,
       questions.length,
-      quiz.passingPercentage,
     );
 
     const saved = await this.dataSource.transaction(async (manager) => {
@@ -370,6 +366,13 @@ export class AssessmentsService {
     if (!module || module.courseId !== courseId) {
       throw new BadRequestException('moduleId must belong to the same course');
     }
+  }
+
+  private assertQuestionOptions(options: QuizOptionDto[]): void {
+    if (options.length !== 4) {
+      throw new BadRequestException('Each question must have exactly four options');
+    }
+    this.assertSingleCorrectOption(options);
   }
 
   private assertSingleCorrectOption(options: QuizOptionDto[]): void {

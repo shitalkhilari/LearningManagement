@@ -22,4 +22,10 @@ describe('calculateCompletion', () => {
     expect(calculateCompletion(4, 4).status).toBe(EnrollmentStatus.COMPLETED);
     expect(calculateCompletion(4, 4).percentage).toBe(100);
   });
+
+  it('clamps a negative or oversized completed count', () => {
+    expect(calculateCompletion(-2, 4)).toMatchObject({ percentage: 0, pendingLessons: 4, status: EnrollmentStatus.ACTIVE });
+    expect(calculateCompletion(9, 4)).toMatchObject({ percentage: 100, pendingLessons: 0, status: EnrollmentStatus.COMPLETED });
+    expect(calculateCompletion(1, -1).percentage).toBe(0);
+  });
 });

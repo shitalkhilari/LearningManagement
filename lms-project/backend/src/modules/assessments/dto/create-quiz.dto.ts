@@ -1,15 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateQuizDto {
   @ApiProperty({ example: 'Module 1 check' })
@@ -23,15 +13,7 @@ export class CreateQuizDto {
   @IsNotEmpty()
   description: string;
 
-  @ApiProperty({ example: 70, minimum: 1, maximum: 100 })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  passingPercentage: number;
-
-  @ApiPropertyOptional({ description: 'Optional module this quiz belongs to' })
-  @IsOptional()
+  @ApiProperty({ description: 'Module this quiz belongs to. A module can have more than one quiz.' })
   @IsUUID()
-  moduleId?: string;
+  moduleId: string;
 }

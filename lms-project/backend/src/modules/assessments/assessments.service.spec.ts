@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CourseStatus } from '../../common/enums/course-status.enum';
 import { QuizAttemptStatus } from '../../common/enums/quiz-attempt-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
@@ -55,7 +55,6 @@ describe('AssessmentsService', () => {
   const quiz = {
     id: 'quiz-1',
     courseId: 'course-1',
-    passingPercentage: 50,
     course: { id: 'course-1', status: CourseStatus.PUBLISHED, instructorId: 'inst-1' },
     questions: [
       {
@@ -103,8 +102,7 @@ describe('AssessmentsService', () => {
     expect(dataSource.transaction).toHaveBeenCalled();
   });
 
-  it('scores an incorrect submission as a fail when it is below the pass mark', async () => {
-    quizzesRepository.findOne.mockResolvedValue({ ...quiz, passingPercentage: 100 });
+  it('scores an incorrect submission as a fail', async () => {
     const result = await service.submit('quiz-1', learner, {
       answers: [{ questionId: 'q1', selectedOptionId: 'o2' }],
     });
@@ -127,6 +125,18 @@ describe('AssessmentsService', () => {
     expect(option.isCorrect).toBeUndefined();
   });
 
+  it('requires a module when creating a quiz', async () => {
+    const instructor = { ...learner, role: UserRole.INSTRUCTOR };
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    await expect(
+      service.createQuiz('course-1', instructor, {
+        title: 'Check',
+        description: 'Short',
+        moduleId: '',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('creates, updates, and refuses to delete a quiz that has attempts', async () => {
     const instructor = { ...learner, role: UserRole.INSTRUCTOR };
     coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
@@ -141,10 +151,10 @@ describe('AssessmentsService', () => {
     (modulesRepository as { findOne: jest.Mock }).findOne = jest.fn().mockResolvedValue({ id: 'mod-1', courseId: 'course-1' });
     coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.PUBLISHED });
     const created = await service.createQuiz('course-1', instructor, {
-      title: 'Check', description: 'Short', passingPercentage: 60, moduleId: 'mod-1',
+      title: 'Check', description: 'Short', moduleId: 'mod-1',
     });
     expect(created.title).toBe('Check');
-    const updated = await service.updateQuiz('quiz-1', instructor, { title: 'Renamed', passingPercentage: 70 });
+    const updated = await service.updateQuiz('quiz-1', instructor, { title: 'Renamed' });
     expect(updated.title).toBe('Renamed');
     (attemptsRepository as { count: jest.Mock }).count = jest.fn().mockResolvedValue(2);
     await expect(service.removeQuiz('quiz-1', instructor)).rejects.toThrow('Cannot delete a quiz that has attempts');
@@ -160,9 +170,11 @@ describe('AssessmentsService', () => {
       options: [
         { optionText: 'A', isCorrect: true },
         { optionText: 'B', isCorrect: false },
+        { optionText: 'C', isCorrect: false },
+        { optionText: 'D', isCorrect: false },
       ],
     });
-    expect(question.options).toHaveLength(2);
+    expect(question.options).toHaveLength(4);
   });
 
   it('updates and deletes a question that has no responses', async () => {
@@ -186,6 +198,8 @@ describe('AssessmentsService', () => {
       options: [
         { optionText: 'A', isCorrect: true },
         { optionText: 'B', isCorrect: false },
+        { optionText: 'C', isCorrect: false },
+        { optionText: 'D', isCorrect: false },
       ],
     });
     expect(updated.questionText).toBe('New question');
@@ -213,8 +227,214 @@ describe('AssessmentsService', () => {
         options: [
           { optionText: 'A', isCorrect: true },
           { optionText: 'B', isCorrect: true },
+          { optionText: 'C', isCorrect: false },
+          { optionText: 'D', isCorrect: false },
         ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a question that does not have four options', async () => {
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    await expect(
+      service.addQuestion('quiz-1', { ...learner, role: UserRole.INSTRUCTOR }, {
+        questionText: 'Pick one',
+        options: [
+          { optionText: 'A', isCorrect: true },
+          { optionText: 'B', isCorrect: false },
+          { optionText: 'C', isCorrect: false },
+        ],
+      }),
+    ).rejects.toThrow('Each question must have exactly four options');
+  });
+
+  const instructor = { ...learner, id: 'inst-1', role: UserRole.INSTRUCTOR };
+  const fourOptions = [
+    { optionText: 'A', isCorrect: true },
+    { optionText: 'B', isCorrect: false },
+    { optionText: 'C', isCorrect: false },
+    { optionText: 'D', isCorrect: false },
+  ];
+
+  it('lists quizzes for an instructor and hides a draft from a learner', async () => {
+    (quizzesRepository as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue([
+      { ...quiz, questions: undefined },
+      {
+        ...quiz,
+        id: 'quiz-2',
+        questions: [
+          {
+            id: 'q9',
+            questionText: 'Q',
+            sequence: 2,
+            options: [{ id: 'o9', questionId: 'q9', optionText: 'A', isCorrect: true }],
+          },
+        ],
+      },
+    ]);
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.PUBLISHED });
+    const visible = await service.listByCourse('course-1', instructor);
+    expect(visible[0].questions).toBeUndefined();
+    const hidden = await service.listByCourse('course-1', learner);
+    expect((hidden[1].questions[0].options[0] as { isCorrect?: boolean }).isCorrect).toBeUndefined();
+
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.DRAFT });
+    await expect(service.findOne('quiz-1', learner)).rejects.toThrow('Quiz not found');
+    enrollmentsRepository.findOne.mockResolvedValue(null);
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.PUBLISHED });
+    await expect(service.listByCourse('course-1', learner)).rejects.toThrow(
+      'Enroll in the course before viewing its quizzes',
+    );
+  });
+
+  it('rejects a missing quiz, a module from another course, and a non-learner submission', async () => {
+    quizzesRepository.findOne.mockResolvedValueOnce(null);
+    await expect(service.findOne('missing', instructor)).rejects.toBeInstanceOf(NotFoundException);
+
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    (modulesRepository as unknown as { findOne: jest.Mock }).findOne = jest.fn().mockResolvedValue({
+      id: 'mod-9',
+      courseId: 'other-course',
+    });
+    await expect(
+      service.createQuiz('course-1', instructor, { title: 'Check', description: 'Short', moduleId: 'mod-9' }),
+    ).rejects.toThrow('moduleId must belong to the same course');
+    (modulesRepository as unknown as { findOne: jest.Mock }).findOne.mockResolvedValue(null);
+    await expect(
+      service.updateQuiz('quiz-1', instructor, { moduleId: 'missing' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      service.submit('quiz-1', instructor, { answers: [{ questionId: 'q1', selectedOptionId: 'o1' }] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    quizzesRepository.findOne.mockResolvedValue({ ...quiz, course: { ...quiz.course, status: CourseStatus.DRAFT } });
+    await expect(
+      service.submit('quiz-1', learner, { answers: [{ questionId: 'q1', selectedOptionId: 'o1' }] }),
+    ).rejects.toThrow('Quiz not found');
+  });
+
+  it('updates the description, deletes a quiz with no attempts, and lists staff attempts', async () => {
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.PUBLISHED });
+    const quizzes = quizzesRepository as unknown as { save: jest.Mock; delete: jest.Mock };
+    quizzes.save = jest.fn(async (value) => value);
+    quizzes.delete = jest.fn();
+    (modulesRepository as unknown as { findOne: jest.Mock }).findOne = jest.fn().mockResolvedValue({
+      id: 'mod-2',
+      courseId: 'course-1',
+    });
+    const updated = await service.updateQuiz('quiz-1', instructor, { description: ' Longer ', moduleId: 'mod-2' });
+    expect(updated.description).toBe('Longer');
+    expect(quizzes.save).toHaveBeenCalledWith(expect.objectContaining({ moduleId: 'mod-2' }));
+
+    (attemptsRepository as unknown as { count: jest.Mock; find: jest.Mock }).count = jest.fn().mockResolvedValue(0);
+    await expect(service.removeQuiz('quiz-1', instructor)).resolves.toEqual({ message: 'Quiz deleted' });
+    (attemptsRepository as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue([{ id: 'attempt-2' }]);
+    await expect(service.listAttempts('quiz-1', instructor)).resolves.toEqual([{ id: 'attempt-2' }]);
+    expect((attemptsRepository as unknown as { find: jest.Mock }).find).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { quizId: 'quiz-1' } }),
+    );
+  });
+
+  it('assigns the next sequence and refuses to change options that were already answered', async () => {
+    coursesService.getManagedCourse.mockResolvedValue({ id: 'course-1' });
+    (questionsRepository as unknown as { createQueryBuilder: jest.Mock }).createQueryBuilder = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue(undefined),
+    });
+    const created = await service.addQuestion('quiz-1', instructor, { questionText: ' Next ', options: fourOptions });
+    expect(created.sequence).toBe(1);
+    expect(created.questionText).toBe('Next');
+
+    const questions = questionsRepository as unknown as { findOne: jest.Mock; delete: jest.Mock };
+    const responses = responsesRepository as unknown as { count: jest.Mock };
+    questions.findOne = jest.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'q1',
+        questionText: 'Old',
+        sequence: 1,
+        quiz: { courseId: 'course-1' },
+        options: [],
+      })
+      .mockResolvedValue({
+        id: 'q1',
+        questionText: 'Old',
+        sequence: 1,
+        quiz: { courseId: 'course-1' },
+        options: [],
+      });
+    await expect(service.updateQuestion('missing', instructor, { questionText: 'New' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    responses.count = jest.fn().mockResolvedValue(2);
+    await expect(service.updateQuestion('q1', instructor, { options: fourOptions })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    const textOnly = await service.updateQuestion('q1', instructor, { questionText: ' Reworded ' });
+    expect(textOnly.questionText).toBe('Reworded');
+
+    questions.findOne.mockResolvedValueOnce(null);
+    await expect(service.removeQuestion('missing', instructor)).rejects.toThrow('Question not found');
+    questions.findOne.mockResolvedValue({ id: 'q1', quiz: { courseId: 'course-1' } });
+    responses.count.mockResolvedValue(3);
+    await expect(service.removeQuestion('q1', instructor)).rejects.toThrow(
+      'Cannot delete a question that has responses',
+    );
+  });
+
+  it('rejects a submission that does not include every question', async () => {
+    quizzesRepository.findOne.mockResolvedValue({
+      ...quiz,
+      questions: [quiz.questions[0], { ...quiz.questions[0], id: 'q2', sequence: 2 }],
+    });
+    await expect(
+      service.submit('quiz-1', learner, {
+        answers: [{ questionId: 'q1', selectedOptionId: 'o1' }],
+      }),
+    ).rejects.toThrow('All questions must be answered');
+  });
+
+  it('rejects an answer for a question that was left out of the payload', async () => {
+    quizzesRepository.findOne.mockResolvedValue({
+      ...quiz,
+      questions: [
+        quiz.questions[0],
+        { ...quiz.questions[0], id: 'q2', sequence: 2 },
+      ],
+    });
+    await expect(
+      service.submit('quiz-1', learner, {
+        answers: [
+          { questionId: 'q1', selectedOptionId: 'o1' },
+          { questionId: 'other', selectedOptionId: 'o2' },
+        ],
+      }),
+    ).rejects.toThrow('All questions must be answered');
+  });
+
+  it('guards attempt lookups by role', async () => {
+    const attempts = attemptsRepository as unknown as { findOne: jest.Mock };
+    attempts.findOne = jest.fn().mockResolvedValueOnce(null);
+    await expect(service.findAttempt('missing', learner)).rejects.toBeInstanceOf(NotFoundException);
+
+    const attempt = {
+      id: 'attempt-1',
+      learnerId: learner.id,
+      quiz: { course: { instructorId: 'inst-1' } },
+    };
+    attempts.findOne.mockResolvedValue(attempt);
+    await expect(service.findAttempt('attempt-1', { ...learner, id: 'other' })).rejects.toThrow(
+      'You can only view your own quiz attempts',
+    );
+    await expect(service.findAttempt('attempt-1', { ...instructor, id: 'other-inst' })).rejects.toThrow(
+      'You can only view attempts for your own courses',
+    );
+    await expect(service.findAttempt('attempt-1', instructor)).resolves.toBe(attempt);
+    await expect(service.findAttempt('attempt-1', { ...learner, id: 'admin-1', role: UserRole.ADMIN })).resolves.toBe(
+      attempt,
+    );
   });
 });

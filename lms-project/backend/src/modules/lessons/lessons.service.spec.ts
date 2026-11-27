@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CourseStatus } from '../../common/enums/course-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthUser } from '../../common/interfaces/auth-user.interface';
@@ -43,7 +43,10 @@ describe('LessonsService', () => {
       getRawOne: jest.fn().mockResolvedValue({ max: '0' }),
     });
     const lesson = await service.create('mod-1', instructor, {
-      title: 'Intro', description: 'About', content: 'Body',
+      title: 'Intro',
+      description: 'About',
+      content: 'Body',
+      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
     });
     expect(lesson.sequence).toBe(1);
   });
@@ -77,5 +80,99 @@ describe('LessonsService', () => {
     modulesRepository.findOne.mockResolvedValue({ id: 'mod-1', courseId: 'course-1' });
     lessonsRepository.find.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
     await expect(service.reorder('mod-1', instructor, ['a'])).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a missing module, a duplicate reorder, and an id from another module', async () => {
+    modulesRepository.findOne.mockResolvedValue(null);
+    await expect(
+      service.create('missing', instructor, {
+        title: 'Intro',
+        description: 'About',
+        content: 'Body',
+        videoUrl: 'https://example.com/a.mp4',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findByModule('missing', learner)).rejects.toThrow('Module not found');
+
+    modulesRepository.findOne.mockResolvedValue({ id: 'mod-1', courseId: 'course-1' });
+    lessonsRepository.find.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    await expect(service.reorder('mod-1', instructor, ['a', 'a'])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.reorder('mod-1', instructor, ['a', 'c'])).rejects.toThrow(
+      'orderedIds must list each lesson of the module exactly once',
+    );
+  });
+
+  it('reorders lessons and starts the sequence at 1 when the module is empty', async () => {
+    modulesRepository.findOne.mockResolvedValue({ id: 'mod-1', courseId: 'course-1' });
+    lessonsRepository.createQueryBuilder.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue(undefined),
+    });
+    const created = await service.create('mod-1', instructor, {
+      title: ' Intro ',
+      description: ' About ',
+      content: ' Body ',
+      videoUrl: ' https://example.com/a.mp4 ',
+    });
+    expect(created.sequence).toBe(1);
+    expect(created.title).toBe('Intro');
+
+    lessonsRepository.find
+      .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }])
+      .mockResolvedValueOnce([{ id: 'b', sequence: 1 }, { id: 'a', sequence: 2 }]);
+    const reordered = await service.reorder('mod-1', instructor, ['b', 'a']);
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(reordered.map((lesson) => lesson.id)).toEqual(['b', 'a']);
+  });
+
+  it('lets an instructor open a draft lesson and hides an unpublished lesson from a learner', async () => {
+    modulesRepository.findOne.mockResolvedValue({ id: 'mod-1', courseId: 'course-1' });
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.DRAFT });
+    lessonsRepository.find.mockResolvedValue([{ id: 'lesson-1' }]);
+    await expect(service.findByModule('mod-1', instructor)).resolves.toHaveLength(1);
+    expect(enrollmentsRepository.findOne).not.toHaveBeenCalled();
+
+    await expect(service.findByModule('mod-1', learner)).rejects.toThrow('Lesson not found');
+    lessonsRepository.findOne.mockResolvedValue(null);
+    await expect(service.findOne('missing', instructor)).rejects.toThrow('Lesson not found');
+  });
+
+  it('returns a lesson to an enrolled learner and updates every text field', async () => {
+    lessonsRepository.findOne.mockResolvedValue({
+      id: 'lesson-1',
+      title: 'Old',
+      description: 'Old',
+      content: 'Old',
+      videoUrl: 'https://example.com/old.mp4',
+      module: { courseId: 'course-1' },
+    });
+    coursesService.getVisibleCourse.mockResolvedValue({ id: 'course-1', status: CourseStatus.PUBLISHED });
+    enrollmentsRepository.findOne.mockResolvedValue({ id: 'enr-1' });
+    await expect(service.findOne('lesson-1', learner)).resolves.toMatchObject({ id: 'lesson-1' });
+
+    const updated = await service.update('lesson-1', instructor, {
+      title: ' New ',
+      description: ' Details ',
+      videoUrl: ' https://example.com/new.mp4 ',
+    });
+    expect(updated).toMatchObject({
+      title: 'New',
+      description: 'Details',
+      videoUrl: 'https://example.com/new.mp4',
+    });
+  });
+
+  it('deletes a lesson that has no progress and reports a missing lesson', async () => {
+    lessonsRepository.findOne.mockResolvedValueOnce(null);
+    await expect(service.remove('missing', instructor)).rejects.toBeInstanceOf(NotFoundException);
+
+    lessonsRepository.findOne.mockResolvedValue({
+      id: 'lesson-1',
+      module: { courseId: 'course-1' },
+    });
+    progressRepository.count.mockResolvedValue(0);
+    await expect(service.remove('lesson-1', instructor)).resolves.toEqual({ message: 'Lesson deleted' });
+    expect(lessonsRepository.delete).toHaveBeenCalledWith('lesson-1');
   });
 });

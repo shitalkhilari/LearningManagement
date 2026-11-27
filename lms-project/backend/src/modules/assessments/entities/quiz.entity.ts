@@ -41,9 +41,6 @@ export class Quiz {
   @Column({ type: 'text' })
   description: string;
 
-  @Column({ name: 'passing_percentage', type: 'int' })
-  passingPercentage: number;
-
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

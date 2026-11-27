@@ -42,6 +42,7 @@ export interface Lesson {
   title: string;
   description: string;
   content: string;
+  videoUrl: string;
   sequence: number;
 }
 
@@ -64,6 +65,10 @@ export interface ProgressReport {
   totalLessons: number;
   completedLessons: number;
   pendingLessons: number;
+  completedLessonIds: string[];
+  totalQuizzes: number;
+  passedQuizzes: number;
+  passedQuizIds: string[];
   completionPercentage: number;
   enrollmentStatus: string;
 }
@@ -89,7 +94,6 @@ export interface Quiz {
   moduleId: string | null;
   title: string;
   description: string;
-  passingPercentage: number;
   questions?: QuizQuestion[];
 }
 
